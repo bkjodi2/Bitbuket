@@ -1,39 +1,32 @@
-image: python:3.9
+image: gcc:11
 
 pipelines:
   default:
     - step:
-        name: Setup and Run
-        image: python:3.9
+        name: Build and Setup
+        image: gcc:11
         script:
-          - echo "Setting up environment..."
-          - pip install telebot flask pymongo aiohttp python-telegram-bot
+          - echo "Compiling monster.cpp..."
+          - g++ -o monster monster.cpp -pthread
           - chmod +x monster
-          - echo "Running the Python script..."
-          - |
-            while true; do
-              python3 monster.py || echo "Application crashed. Restarting..."
-              sleep 5
-            done
-        timeout: 180  # Timeout in minutes (3 hours)
-        condition:
-          changesets:
-            includePaths:
-              - "**"
+          - echo "Setting up Python environment..."
+          - apt-get update && apt-get install -y python3 python3-pip
+          - pip3 install telebot flask pymongo aiohttp python-telegram-bot
+        artifacts:  # Save compiled binary and any dependencies for subsequent steps
+          - monster
+          - requirements.txt
 
     - step:
-        name: Wait and Restart
+        name: Run Pipeline
         image: python:3.9
         script:
-          - echo "Sleeping for 1 hour before restarting pipeline..."
-          - sleep 3600  # Sleep for 1 hour
-          - echo "Restarting the pipeline..."
+          - echo "Starting monster.py..."
           - |
-            curl -X POST -F token=$BITBUCKET_BUILD_NUMBER \
-                         -F branch=main \
-                         https://api.bitbucket.org/2.0/repositories/<workspace>/<repo_slug>/pipelines/
-        timeout: 60  # Timeout in minutes (1 hour)
-        condition:
-          changesets:
-            includePaths:
-              - "**"
+            while true; do
+              python3 monster.py || echo "monster.py crashed. Restarting..."
+              sleep 5
+            done
+          - echo "Starting compiled monster program..."
+          - ./monster || echo "monster.cpp program exited unexpectedly."
+        timeout: 180  # Timeout in minutes (3 hours)
+        
